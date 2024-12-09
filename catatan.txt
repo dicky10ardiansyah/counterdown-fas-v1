@@ -1,0 +1,6 @@
++++++++++++++++ Untuk build ++++++++++++++++++++++
+pyinstaller --onefile --windowed --add-data "beep.mp3;." --add-data "buzzer.mp3;." main.py
+++++++++++++++++++++++++++++++++++++++++++++++++++
+
+pip install pygame
+pip install pyinstaller
