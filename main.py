@@ -1,134 +1,113 @@
 import tkinter as tk
 from tkinter import messagebox
 import pygame
-import threading
-import sys
+import datetime
 import os
+import sys
 
-# Inisialisasi pygame mixer untuk memainkan file audio
+# Initialize pygame mixer for playing audio
 pygame.mixer.init()
 
-# Cek apakah aplikasi dijalankan dalam mode standalone (bundle dengan PyInstaller)
-if getattr(sys, 'frozen', False):
-    # Jika aplikasi dijalankan sebagai executable (PyInstaller)
-    application_path = sys._MEIPASS
-else:
-    # Jika aplikasi dijalankan sebagai skrip Python biasa
-    application_path = os.path.abspath(".")
+# Global variables for countdown management
+is_counting_down = False
+total_seconds = 0
 
-# Membuat jalur lengkap untuk file audio
-beep_path = os.path.join(application_path, "beep.mp3")
-buzzer_path = os.path.join(application_path, "buzzer.mp3")
+def get_resource_path(relative_path):
+    """Return the absolute path to a resource, works for development and PyInstaller bundle."""
+    try:
+        # PyInstaller creates a temp folder and stores the path in _MEIPASS
+        if getattr(sys, 'frozen', False):
+            # If running as a bundled app, use _MEIPASS
+            base_path = sys._MEIPASS
+        else:
+            # If running in a normal Python environment, use the current directory
+            base_path = os.path.abspath(".")
+        return os.path.join(base_path, relative_path)
+    except Exception as e:
+        print(f"Error getting resource path: {e}")
+        return relative_path  # Return relative path if there's an issue
+
+def play_beep():
+    beep_path = get_resource_path("beep.mp3")
+    pygame.mixer.music.load(beep_path)
+    pygame.mixer.music.play()
+
+def play_buzzer():
+    buzzer_path = get_resource_path("buzzer.mp3")
+    pygame.mixer.music.load(buzzer_path)
+    pygame.mixer.music.play()
 
 def start_countdown():
+    global is_counting_down, total_seconds
     try:
-        # Menghilangkan teks "Waktu Habis" saat mulai countdown baru
         time_up_label.config(text="")
-
-        # Ambil waktu dari entry
         minutes = int(minutes_entry.get())
         seconds = int(seconds_entry.get())
         total_seconds = minutes * 60 + seconds
-        countdown(total_seconds)
+        is_counting_down = True
+        countdown()  # Start countdown
     except ValueError:
         messagebox.showerror("Error", "Masukkan waktu dengan benar.")
 
-def countdown(total_seconds):
-    if total_seconds > 0:
+def countdown():
+    global total_seconds, is_counting_down
+    if total_seconds > 0 and is_counting_down:
         minutes, seconds = divmod(total_seconds, 60)
         time_display = f"{minutes:02}:{seconds:02}"
         timer_label.config(text=time_display)
 
-        # Ubah warna teks menjadi merah jika sisa waktu 10 detik atau kurang
         if total_seconds <= 10:
             timer_label.config(fg="red")
-            # Putar suara beep di thread terpisah
-            threading.Thread(target=play_beep).start()
+            play_beep()  # Play beep sound if less than 10 seconds
         else:
-            timer_label.config(fg="#212529")  # Warna default (hitam)
+            timer_label.config(fg="#212529")  # Default color
 
-        root.after(1000, countdown, total_seconds - 1)
-    else:
+        total_seconds -= 1
+        root.after(1000, countdown)  # Call countdown every second
+    elif total_seconds == 0:
         timer_label.config(text="00:00")
-        # Jangan mengubah teks time_up_label, atau biarkan tetap kosong
-        # time_up_label.config(text="Waktu Habis", fg="red")  # Hapus atau komentari baris ini
-        # Putar suara buzzer di thread terpisah ketika waktu habis
-        threading.Thread(target=play_buzzer).start()
+        play_buzzer()  # Play buzzer when time is up
 
-# Fungsi untuk memutar suara beep
-def play_beep():
-    pygame.mixer.music.load(beep_path)  # Gunakan jalur yang benar
-    pygame.mixer.music.play()
+def stop_countdown():
+    global is_counting_down
+    is_counting_down = False
 
-# Fungsi untuk memutar suara buzzer
-def play_buzzer():
-    pygame.mixer.music.load(buzzer_path)  # Gunakan jalur yang benar
-    pygame.mixer.music.play()
+def reset_countdown():
+    global is_counting_down, total_seconds
+    is_counting_down = False
+    total_seconds = 0
+    timer_label.config(text="00:00")
+    time_up_label.config(text="")
+    pygame.mixer.music.stop()  # Stop any sound
 
-# Fungsi untuk memvalidasi input angka saja
 def validate_input(P):
-    if P == "" or P.isdigit():  # Izinkan string kosong atau hanya angka
-        return True
-    else:
-        return False
+    return P == "" or P.isdigit()  # Validate input is a number or empty
 
-# Membuat GUI
+def continue_countdown():
+    global is_counting_down
+    if not is_counting_down and total_seconds > 0:
+        is_counting_down = True
+        countdown()  # Resume countdown from where it stopped
+
 root = tk.Tk()
-root.title("(FAS) Festival Anak Sholeh 2024")  # Title bar tetap ada
-root.geometry("600x600")  # Ukuran awal layar
+root.title(f"(FAS) Festival Anak Sholeh {datetime.datetime.now().year}")  # Use current year here
+root.geometry("600x600")
 root.configure(bg="#f8f9fa")
 
-# Menambahkan judul dengan background hitam
-title_label = tk.Label(root, text="(FAS) Festival Anak Sholeh 2024", font=("Helvetica", 24, "bold"), bg="black", fg="white", pady=20)
+title_label = tk.Label(root, text=f"(FAS) Festival Anak Sholeh {datetime.datetime.now().year}", font=("Helvetica", 24, "bold"), bg="black", fg="white", pady=20)
 title_label.pack(fill=tk.X)
 
-# Fungsi untuk membuat frame dengan sudut melengkung menggunakan canvas
-def create_rounded_frame(parent, width, height, bg_color, corner_radius):
-    canvas = tk.Canvas(parent, width=width, height=height, bg=bg_color, bd=0, highlightthickness=0)
-    canvas.pack_propagate(False)
-    
-    # Membuat latar belakang dengan sudut melengkung
-    canvas.create_rectangle(
-        corner_radius, 0, width - corner_radius, height, fill=bg_color, outline=bg_color
-    )
-    canvas.create_rectangle(
-        0, corner_radius, width, height - corner_radius, fill=bg_color, outline=bg_color
-    )
-    canvas.create_oval(
-        0, 0, corner_radius * 2, corner_radius * 2, fill=bg_color, outline=bg_color
-    )
-    canvas.create_oval(
-        width - corner_radius * 2, 0, width, corner_radius * 2, fill=bg_color, outline=bg_color
-    )
-    canvas.create_oval(
-        0, height - corner_radius * 2, corner_radius * 2, height, fill=bg_color, outline=bg_color
-    )
-    canvas.create_oval(
-        width - corner_radius * 2, height - corner_radius * 2, width, height, fill=bg_color, outline=bg_color
-    )
-    
-    return canvas
-
-# Timer tanpa Card (Pindahkan posisi ke atas)
 timer_label = tk.Label(root, text="00:00", font=("Helvetica", 180, "bold"), bg="#f8f9fa", fg="#212529", pady=40)
-timer_label.pack(pady=30)  # Padding lebih kecil agar timer di atas card
+timer_label.pack(pady=30)
 
-# Card Input (Rounded Frame)
-input_card = create_rounded_frame(root, width=400, height=150, bg_color="white", corner_radius=20)
-input_card.pack(pady=40)  # Padding lebih besar agar ada jarak antara card dan timer
+# Removed card style, directly place inputs here
+tk.Label(root, text="Masukkan Waktu", font=("Helvetica", 14, "bold"), bg="white", fg="#495057").pack(pady=10)
 
-# Masukkan elemen ke dalam card
-inner_frame = tk.Frame(input_card, bg="white")
-inner_frame.place(x=0, y=0, width=400, height=150)
-
-tk.Label(inner_frame, text="Masukkan Waktu", font=("Helvetica", 14, "bold"), bg="white", fg="#495057").pack(pady=10)
-
-input_frame = tk.Frame(inner_frame, bg="white")
+input_frame = tk.Frame(root, bg="white")
 input_frame.pack()
 
 tk.Label(input_frame, text="Menit:", font=("Helvetica", 12), bg="white", fg="#495057").pack(side=tk.LEFT, padx=5)
 
-# Mendaftarkan validatecommand untuk validasi input
 vcmd = root.register(validate_input)
 
 minutes_entry = tk.Entry(input_frame, width=5, font=("Helvetica", 12), justify="center", validate="key", validatecommand=(vcmd, "%P"))
@@ -138,32 +117,39 @@ tk.Label(input_frame, text="Detik:", font=("Helvetica", 12), bg="white", fg="#49
 seconds_entry = tk.Entry(input_frame, width=5, font=("Helvetica", 12), justify="center", validate="key", validatecommand=(vcmd, "%P"))
 seconds_entry.pack(side=tk.LEFT, padx=5)
 
-# Tombol
-start_button = tk.Button(inner_frame, text="Mulai", command=start_countdown, font=("Helvetica", 12), bg="#007bff", fg="white", 
-                         activebackground="#0056b3", activeforeground="white", relief="flat", padx=20, pady=5)
-start_button.pack(pady=15)
+# Control Buttons
+button_frame = tk.Frame(root, bg="white")
+button_frame.pack(pady=20)
 
-# Label "Waktu Habis"
+start_button = tk.Button(button_frame, text="Mulai", command=start_countdown, font=("Helvetica", 12), bg="#007bff", fg="white", activebackground="#0056b3", activeforeground="white", relief="flat", padx=20, pady=5)
+start_button.grid(row=0, column=0, padx=10)
+
+stop_button = tk.Button(button_frame, text="Stop", command=stop_countdown, font=("Helvetica", 12), bg="#dc3545", fg="white", activebackground="#c82333", activeforeground="white", relief="flat", padx=20, pady=5)
+stop_button.grid(row=0, column=1, padx=10)
+
+reset_button = tk.Button(button_frame, text="Reset", command=reset_countdown, font=("Helvetica", 12), bg="#28a745", fg="white", activebackground="#218838", activeforeground="white", relief="flat", padx=20, pady=5)
+reset_button.grid(row=0, column=2, padx=10)
+
+continue_button = tk.Button(button_frame, text="Lanjutkan", command=continue_countdown, font=("Helvetica", 12), bg="#ffc107", fg="white", activebackground="#e0a800", activeforeground="white", relief="flat", padx=20, pady=5)
+continue_button.grid(row=0, column=3, padx=10)
+
 time_up_label = tk.Label(root, text="", font=("Helvetica", 24, "bold"), bg="#f8f9fa", fg="red")
 time_up_label.pack(pady=10)
 
-# Footer
-footer = tk.Label(root, text="© 2024 Countdown Timer", font=("Helvetica", 10), bg="#f8f9fa", fg="#adb5bd", pady=10)
+# Dynamically update the year in the footer
+current_year = datetime.datetime.now().year
+footer = tk.Label(root, text=f"© {current_year} Countdown Timer", font=("Helvetica", 10), bg="#f8f9fa", fg="#adb5bd", pady=10)
 footer.pack(side=tk.BOTTOM, fill=tk.X)
 
-# Fungsi untuk fullscreen in (maksimalkan layar)
 def fullscreen_in(event=None):
-    root.attributes('-fullscreen', True)  # Mengaktifkan fullscreen
-    root.bind("<Escape>", fullscreen_out)  # Mengikat tombol Escape untuk keluar fullscreen
+    root.attributes('-fullscreen', True)
+    root.bind("<Escape>", fullscreen_out)
 
-# Fungsi untuk fullscreen out (keluar dari fullscreen)
 def fullscreen_out(event=None):
-    root.attributes('-fullscreen', False)  # Menonaktifkan fullscreen
-    root.geometry("600x600")  # Mengembalikan ukuran semula
-    root.bind("<Double-1>", fullscreen_in)  # Mengikat double-click untuk fullscreen in
+    root.attributes('-fullscreen', False)
+    root.geometry("600x600")
+    root.bind("<Double-1>", fullscreen_in)
 
-# Mengikat double-click untuk fullscreen in
 root.bind("<Double-1>", fullscreen_in)
 
-# Menjalankan loop utama tkinter
 root.mainloop()
